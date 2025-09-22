@@ -5,3 +5,5 @@ mqttcpp
 build
 .vscode
 .DS_Store
+config/*.json
+!config/*_example.json

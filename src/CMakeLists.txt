@@ -20,7 +20,8 @@ if(CMAKE_CXX_STANDARD GREATER_EQUAL 26)
     add_compile_options(-Wno-deprecated)
 endif()
 
-find_package(nlohmann_json 3.12.0 REQUIRED)
+list(PREPEND CMAKE_PREFIX_PATH "/usr/local/jsoncpp-1.9.7")
+find_package(jsoncpp CONFIG REQUIRED)
 
 find_package(PahoMqttCpp NAMES PahoMqttCpp eclipse-paho-mqtt-cpp CONFIG REQUIRED)
 

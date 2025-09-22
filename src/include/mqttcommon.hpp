@@ -1,5 +1,8 @@
 #ifndef MQTT_COMMON_HPP__
 #define MQTT_COMMON_HPP__
+#include <json/reader.h>
+#include <json/value.h>
+
 #include <cstdint>
 #include <filesystem>
 #include <format>
@@ -9,12 +12,8 @@
 #include <stdexcept>
 #include <string>
 
-#include "nlohmann/json.hpp"
-
 namespace MqttCpp {
   namespace fs = std::filesystem;
-
-  using json = nlohmann::json;
 
   struct ConnectionConfig {
     std::string hostUri;
@@ -27,13 +26,6 @@ namespace MqttCpp {
     std::string topic;
     int qos;
   };
-
-  void from_json(const json& j, ConnectionConfig& cfg) {
-    j.at("hosturi").get_to(cfg.hostUri);
-    j.at("clientid").get_to(cfg.clientId);
-    j.at("username").get_to(cfg.username);
-    j.at("password").get_to(cfg.password);
-  }
 
   ConnectionConfig loadConnectionConfig(const fs::path& configFilePath) {
     auto filepath = fs::weakly_canonical(fs::absolute(configFilePath));
@@ -59,8 +51,22 @@ namespace MqttCpp {
       }
       auto buf = std::bit_cast<char*>(inbuffer.get());
       infile.read(buf, fsize);
-      json j = json::parse(buf, buf + fsize);
-      cfg = j.get<ConnectionConfig>();
+
+      JSONCPP_STRING err;
+      Json::Value root;
+      Json::CharReaderBuilder builder;
+      const std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
+      if (!reader->parse(buf, buf + fsize, &root, &err)) {
+        throw std::runtime_error(std::format("Congif file parse error: {}", err));
+      }
+
+      cfg.hostUri = root["hosturi"].asString();
+      cfg.username = root["username"].asString();
+      cfg.password = root["password"].asString();
+
+      if (root.isMember("clientId")) {
+        cfg.clientId = root["clientid"].asString();
+      }
     }
 
     return cfg;

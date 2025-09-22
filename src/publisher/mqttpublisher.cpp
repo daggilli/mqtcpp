@@ -1,5 +1,39 @@
 #include "mqttpublisher.hpp"
 
-#include "mqttcommon.hpp"
+#include <format>
+#include <print>
+#include <thread>
 
-int main() { return 0; }
+#include "mqttcommon.hpp"
+using namespace std::chrono_literals;
+
+void async_publish(std::stop_token tok, MqttCpp::Publisher &pub) {
+  auto ct{0u};
+  while (!tok.stop_requested()) {
+    auto message = std::format("from thread {}", ct++);
+    std::println("FROM THR PUBLISH |{}|", message);
+
+    pub.enqueue("testtopic", message);
+    std::this_thread::sleep_for(1000ms);
+  }
+}
+
+int main() {
+  MqttCpp::Publisher publisher{"config/publishercfg.json"};
+  MqttCpp::Publisher publisher2{"config/publishercfg.json"};
+
+  publisher.start();
+
+  auto pubthread = std::jthread(async_publish, std::ref(publisher));
+
+  auto ct{0u};
+  while (ct++ < 50) {
+    auto message = std::format("Message {}", ct);
+    std::println("PUBLISH |{}|", message);
+    publisher.enqueue("testtopic", message);
+    std::this_thread::sleep_for(800ms);
+  }
+
+  // std::this_thread::sleep_for(3000ms);
+  return 0;
+}

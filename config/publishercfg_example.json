@@ -1,0 +1,5 @@
+{
+  "hosturi": "mqtt://localhost:1883",
+  "username": "myuser",
+  "password": "secret_password"
+}
