@@ -41,9 +41,8 @@ namespace MqttCpp {
     }
     void start() {
       auto lock = std::scoped_lock(mx);
-      running.store(true, std::memory_order_seq_cst);
-      std::println("JNBLE {}", runningThread.joinable());
       if (runningThread.joinable()) return;
+      running.store(true, std::memory_order_seq_cst);
       runningThread = std::jthread(&Subscriber::run, this);
     }
     void stop() {
