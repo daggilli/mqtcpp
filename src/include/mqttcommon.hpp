@@ -20,11 +20,7 @@ namespace MqttCpp {
     std::string clientId;
     std::string username;
     std::string password;
-  };
-
-  struct SubscriptionConfig {
-    std::string topic;
-    int qos;
+    bool autoStart;
   };
 
   ConnectionConfig loadConnectionConfig(const fs::path& configFilePath) {
@@ -64,9 +60,11 @@ namespace MqttCpp {
       cfg.username = root["username"].asString();
       cfg.password = root["password"].asString();
 
-      if (root.isMember("clientId")) {
+      if (root.isMember("clientid")) {
         cfg.clientId = root["clientid"].asString();
       }
+
+      cfg.autoStart = root.isMember("autostart") ? root["autostart"].asBool() : false;
     }
 
     return cfg;

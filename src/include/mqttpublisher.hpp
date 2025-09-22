@@ -42,6 +42,7 @@ namespace MqttCpp {
                             .finalize();
 
       client = std::make_shared<mqtt::async_client>(createOpts);
+      if (connCfg.autoStart) start();
     }
     ~Publisher() {
       int idx = std::atomic_fetch_sub_explicit(&Publisher::instances, 1, std::memory_order_seq_cst);

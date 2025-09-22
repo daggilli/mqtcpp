@@ -33,23 +33,33 @@ namespace MqttCpp {
   class Subscriber {
    public:
     Subscriber() = delete;
-    Subscriber(const fs::path &configFilePath) : instanceRunning{false} {
+    Subscriber(const fs::path &configFilePath) {
       connCfg = loadConnectionConfig(configFilePath);
       Subscriber::setSignals();
       client = std::make_shared<mqtt::async_client>(connCfg.hostUri, connCfg.clientId,
                                                     mqtt::create_options(MQTTVERSION_5));
     }
     void start() {
-      if (instanceRunning) return;
+      auto lock = std::scoped_lock(mx);
       running.store(true, std::memory_order_seq_cst);
-      instanceRunning = true;
+      std::println("JNBLE {}", runningThread.joinable());
+      if (runningThread.joinable()) return;
       runningThread = std::jthread(&Subscriber::run, this);
     }
     void stop() {
-      if (!instanceRunning) return;
-      if (runningThread.joinable()) runningThread.request_stop();
+      std::jthread tmpThread;
+      {
+        auto lock = std::scoped_lock(mx);
+        if (!runningThread.joinable()) return;
+        runningThread.request_stop();
+        tmpThread = std::move(runningThread);
+      }
+      tmpThread.join();
     }
     void addSubscription(const std::string &topic, MessageHandler handler) {
+      auto lock = std::scoped_lock(mx);
+      if (runningThread.joinable()) return;
+
       topicHandlerVec.emplace_back(topic, handler);
     }
 
@@ -113,12 +123,10 @@ namespace MqttCpp {
           exit(ECONNREFUSED);
         }
 
-        while (!stopToken.stop_requested() && instanceRunning &&
-               MqttCpp::running.load(std::memory_order_relaxed)) {
-          std::this_thread::sleep_for(500ms);
+        while (!stopToken.stop_requested() && MqttCpp::running.load(std::memory_order_relaxed)) {
+          std::this_thread::sleep_for(100ms);
         }
         if (!running) {  // this is because of a signal and we are exiting
-          instanceRunning = false;
           std::println(stderr, "\n{} STOPPED", connCfg.clientId);
           restoreSignals();
         }
@@ -133,7 +141,7 @@ namespace MqttCpp {
     mqtt::async_client_ptr client;
     mqtt::message will;
     std::jthread runningThread;
-    bool instanceRunning;
+    mutable std::mutex mx;
     std::vector<TopicRouter> topicHandlerVec;
     std::unordered_map<uint32_t, TopicRouter> subscriptionMap;
 

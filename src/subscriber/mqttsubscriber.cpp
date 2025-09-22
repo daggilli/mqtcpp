@@ -42,6 +42,14 @@ int main() {
   subscriber.start();
   subscriber2.start();
 
+  auto ct{0u};
+
+  while (ct++ < 10) {
+    std::this_thread::sleep_for(1s);
+  }
+
+  subscriber2.stop();
+
   while (true) {
     std::this_thread::sleep_for(1s);
   }

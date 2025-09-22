@@ -22,16 +22,17 @@ int main() {
   MqttCpp::Publisher publisher{"config/publishercfg.json"};
   MqttCpp::Publisher publisher2{"config/publishercfg.json"};
 
-  publisher.start();
+  // only need this if autostart is falsy in config file
+  // publisher.start();
 
   auto pubthread = std::jthread(async_publish, std::ref(publisher));
 
   auto ct{0u};
-  while (ct++ < 50) {
+  while (ct++ < 100) {
     auto message = std::format("Message {}", ct);
     std::println("PUBLISH |{}|", message);
     publisher.enqueue("testtopic", message);
-    std::this_thread::sleep_for(800ms);
+    std::this_thread::sleep_for(80ms);
   }
 
   // std::this_thread::sleep_for(3000ms);
