@@ -80,7 +80,9 @@ namespace MqttCpp {
 
     void run(std::stop_token stopToken) {
       client->set_connected_handler([this](const std::string &) {
+#ifdef VERBOSE
         std::println("+++ Connected +++");
+#endif
         auto alive = mqtt::make_message(STATUS, "ALIVE");
         alive->set_qos(1);
         alive->set_retained(true);
@@ -88,7 +90,9 @@ namespace MqttCpp {
       });
 
       client->set_connection_lost_handler([this](const std::string &cause) {
+#ifdef VERBOSE
         std::println("--- connection lost: {} ---", (cause.empty() ? "<unknown>" : cause));
+#endif
       });
 
       auto will = mqtt::message(STATUS, "DEAD", 1, true);
@@ -121,12 +125,16 @@ namespace MqttCpp {
         }
         if (!running) {  // this is because of a signal and we are exiting
           instanceRunning = false;
+#ifdef VERBOSE
           std::println(stderr, "\n{} STOPPED", connCfg.clientId);
+#endif
           Publisher::restoreSignals();
         }
         client->disconnect()->wait();
       } catch (const mqtt::exception &e) {
+#ifdef VERBOSE
         std::println("Connection failed: {}", e.what());
+#endif
         exit(ECONNREFUSED);
       }
     }
@@ -147,7 +155,7 @@ namespace MqttCpp {
 
     static inline void setSignals() {
       std::call_once(sigSetup, [] {
-        struct sigaction sa {};
+        struct sigaction sa{};
         sa.sa_flags = 0;
         sigemptyset(&sa.sa_mask);
         sa.sa_handler = +[](int) { running.store(false, std::memory_order_relaxed); };

@@ -53,7 +53,7 @@ namespace MqttCpp {
       Json::CharReaderBuilder builder;
       const std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
       if (!reader->parse(buf, buf + fsize, &root, &err)) {
-        throw std::runtime_error(std::format("Congif file parse error: {}", err));
+        throw std::runtime_error(std::format("Config file parse error: {}", err));
       }
 
       cfg.hostUri = root["hosturi"].asString();

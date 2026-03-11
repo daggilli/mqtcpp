@@ -7,7 +7,7 @@ set(EXE mqttpublisher)
 add_executable(${EXE} ${EXE}.cpp)
 
 target_compile_options(${EXE} PRIVATE
-  $<$<CONFIG:Debug>:-g -O1 -fno-omit-frame-pointer>
+  $<$<CONFIG:Debug>:-g -O1 -DDEBUG -DVERBOSE -fno-omit-frame-pointer>
   $<$<CONFIG:Release>: -O4 -DNODEBUG -ffunction-sections -fdata-sections -fno-plt>
   $<$<AND:$<CONFIG:Debug>,$<BOOL:${ENABLE_ASAN}>>:-fsanitize=address>
 )

@@ -79,21 +79,25 @@ namespace MqttCpp {
           }
         }
         auto message = msg->to_string();
+#ifdef VERBOSE
         std::println("CB [{}] | TOPIC: {} | MSG: {}", connCfg.clientId, msg->get_topic(), message);
+#endif
         (handler)(topic, subscription, message);
       });
 
       client->set_connected_handler([this](const std::string &) {
+#ifdef VERBOSE
         std::println("+++ Connected +++");
-
+#endif
         uint32_t subId{1};
         for (TopicRouter &topic : topicHandlerVec) {
           mqtt::properties props{{mqtt::property::SUBSCRIPTION_IDENTIFIER, subId}};
           subscriptionMap.emplace(subId++, topic);
           auto subToken = client->subscribe(std::get<0>(topic), QOS, mqtt::subscribe_options{}, props);
         }
+#ifdef VERBOSE
         std::println("Waiting...");
-
+#endif
         auto alive = mqtt::make_message(STATUS, "ALIVE");
         alive->set_qos(1);
         alive->set_retained(true);
@@ -101,7 +105,9 @@ namespace MqttCpp {
       });
 
       client->set_connection_lost_handler([this](const std::string &cause) {
+#ifdef VERBOSE
         std::println("--- connection lost: {} ---", (cause.empty() ? "<unknown>" : cause));
+#endif
       });
 
       will = mqtt::message(STATUS, "DEAD", 1, true);
@@ -126,12 +132,16 @@ namespace MqttCpp {
           std::this_thread::sleep_for(100ms);
         }
         if (!running) {  // this is because of a signal and we are exiting
+#ifdef VERBOSE
           std::println(stderr, "\n{} STOPPED", connCfg.clientId);
+#endif
           restoreSignals();
         }
         client->disconnect()->wait();
       } catch (const mqtt::exception &e) {
+#ifdef VERBOSE
         std::println("Connection failed: {}", e.what());
+#endif
         exit(ECONNREFUSED);
       }
     }
@@ -146,7 +156,7 @@ namespace MqttCpp {
 
     static inline void setSignals() {
       std::call_once(sigSetup, [] {
-        struct sigaction sa {};
+        struct sigaction sa{};
         sa.sa_flags = 0;
         sigemptyset(&sa.sa_mask);
         sa.sa_handler = +[](int) { running.store(false, std::memory_order_relaxed); };
