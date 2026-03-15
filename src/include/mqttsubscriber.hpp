@@ -5,8 +5,11 @@
 #include <csignal>
 #include <cstdint>
 #include <filesystem>
+#include <format>
 #include <functional>
 #include <mutex>
+#include <print>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <tuple>
@@ -124,11 +127,13 @@ namespace MqttCpp {
         try {
           client->connect(connectionOptions)->wait();
         } catch (const mqtt::exception &e) {
-          std::cerr << "Initial connect failed: " << e.what() << "\n";
-          exit(ECONNREFUSED);
+#ifdef VERBOSE
+          std::println(stderr, "Initial connect failed: {}", e.what());
+#endif
+          throw std::runtime_error(std::format("Initial connect failed: {}", e.what()));
         }
 
-        while (!stopToken.stop_requested() && MqttCpp::running.load(std::memory_order_relaxed)) {
+        while (!stopToken.stop_requested() && running.load(std::memory_order_relaxed)) {
           std::this_thread::sleep_for(100ms);
         }
         if (!running) {  // this is because of a signal and we are exiting
@@ -142,7 +147,7 @@ namespace MqttCpp {
 #ifdef VERBOSE
         std::println("Connection failed: {}", e.what());
 #endif
-        exit(ECONNREFUSED);
+        throw std::runtime_error(std::format("Connection failed: {}", e.what()));
       }
     }
 

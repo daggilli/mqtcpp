@@ -2,7 +2,10 @@
 
 #include <format>
 #include <print>
+#include <random>
+#include <string>
 #include <thread>
+#include <vector>
 
 #include "mqttcommon.hpp"
 using namespace std::chrono_literals;
@@ -14,11 +17,19 @@ void async_publish(std::stop_token tok, MqttCpp::Publisher &pub) {
     std::println("FROM THR PUBLISH |{}|", message);
 
     pub.enqueue("testtopic", message);
-    std::this_thread::sleep_for(1000ms);
+    std::this_thread::sleep_for(300ms);
   }
 }
 
 int main() {
+  std::vector<std::string> topics{"testtopic",
+                                  "anothertopic",
+                                  "callable",
+                                  "lambda",
+                                  "devices/microwave",
+                                  "devices/fridge",
+                                  "devices/fridge/dooropen",
+                                  "nosubscriber"};
   MqttCpp::Publisher publisher{"config/publishercfg.json"};
   MqttCpp::Publisher publisher2{"config/publishercfg.json"};
 
@@ -27,11 +38,14 @@ int main() {
 
   auto pubthread = std::jthread(async_publish, std::ref(publisher));
 
+  std::mt19937 engine{std::random_device{}()};
+
   auto ct{0u};
   while (ct++ < 100) {
     auto message = std::format("Message {}", ct);
-    std::println("PUBLISH |{}|", message);
-    publisher.enqueue("testtopic", message);
+    auto topic = topics[std::uniform_int_distribution<unsigned long>{0, topics.size() - 1}(engine)];
+    publisher.enqueue(topic.c_str(), message);
+    std::println("PUBLISH |{}| |{}|", topic, message);
     std::this_thread::sleep_for(80ms);
   }
 

@@ -3,8 +3,11 @@
 #include <condition_variable>
 #include <csignal>
 #include <filesystem>
+#include <format>
 #include <mutex>
+#include <print>
 #include <queue>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <utility>
@@ -109,8 +112,7 @@ namespace MqttCpp {
         try {
           client->connect(connectionOptions)->wait();
         } catch (const mqtt::exception &e) {
-          std::cerr << "Initial connect failed: " << e.what() << "\n";
-          exit(ECONNREFUSED);
+          throw std::runtime_error(std::format("Initial connect failed: {}", e.what()));
         }
 
         Message message;
@@ -135,7 +137,7 @@ namespace MqttCpp {
 #ifdef VERBOSE
         std::println("Connection failed: {}", e.what());
 #endif
-        exit(ECONNREFUSED);
+        throw std::runtime_error(std::format("Connection failed: {}", e.what()));
       }
     }
 
