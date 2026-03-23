@@ -14,6 +14,7 @@
 #include <thread>
 #include <tuple>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "mqtt/async_client.h"
@@ -28,8 +29,10 @@ namespace MqttCpp {
 
   using namespace std::chrono_literals;
 
+  enum class Status { running, stopped };
+
   namespace fs = std::filesystem;
-  static inline std::atomic_bool running{false};
+  static inline volatile std::sig_atomic_t active{1};
   inline std::once_flag sigSetup;
   inline std::once_flag sigRestore;
 
@@ -44,9 +47,14 @@ namespace MqttCpp {
     }
     void start() {
       auto lock = std::scoped_lock(mx);
+      subscriptionTopicSet.clear();
       if (runningThread.joinable()) return;
-      running.store(true, std::memory_order_seq_cst);
+      active = 1;
+      stat = Status::running;
       runningThread = std::jthread(&Subscriber::run, this);
+#ifdef VERBOSE
+      std::println(stderr, "START {}", connCfg.clientId);
+#endif
     }
     void stop() {
       std::jthread tmpThread;
@@ -57,13 +65,21 @@ namespace MqttCpp {
         tmpThread = std::move(runningThread);
       }
       tmpThread.join();
+      stat = Status::stopped;
+#ifdef VERBOSE
+      std::println(stderr, "STOP {}", connCfg.clientId);
+#endif
     }
     void addSubscription(const std::string &topic, MessageHandler handler) {
       auto lock = std::scoped_lock(mx);
       if (runningThread.joinable()) return;
 
-      topicHandlerVec.emplace_back(topic, handler);
+      if (!subscriptionTopicSet.contains(topic)) {
+        topicHandlerVec.emplace_back(topic, handler);
+      }
     }
+
+    Status status() const { return stat; }
 
    private:
     void run(std::stop_token stopToken) {
@@ -95,8 +111,12 @@ namespace MqttCpp {
         uint32_t subId{1};
         for (TopicRouter &topic : topicHandlerVec) {
           mqtt::properties props{{mqtt::property::SUBSCRIPTION_IDENTIFIER, subId}};
-          subscriptionMap.emplace(subId++, topic);
-          auto subToken = client->subscribe(std::get<0>(topic), QOS, mqtt::subscribe_options{}, props);
+          auto topicName = std::get<0>(topic);
+          if (!subscriptionTopicSet.contains(topicName)) {
+            subscriptionMap.emplace(subId++, topic);
+            auto subToken = client->subscribe(std::get<0>(topic), QOS, mqtt::subscribe_options{}, props);
+            subscriptionTopicSet.insert(topicName);
+          }
         }
 #ifdef VERBOSE
         std::println("Waiting...");
@@ -133,10 +153,10 @@ namespace MqttCpp {
           throw std::runtime_error(std::format("Initial connect failed: {}", e.what()));
         }
 
-        while (!stopToken.stop_requested() && running.load(std::memory_order_relaxed)) {
+        while (!stopToken.stop_requested() && active && stat == Status::running) {
           std::this_thread::sleep_for(100ms);
         }
-        if (!running) {  // this is because of a signal and we are exiting
+        if (!active) {  // this is because of a signal and we are exiting
 #ifdef VERBOSE
           std::println(stderr, "\n{} STOPPED", connCfg.clientId);
 #endif
@@ -149,7 +169,7 @@ namespace MqttCpp {
 #endif
         throw std::runtime_error(std::format("Connection failed: {}", e.what()));
       }
-    }
+    }  // end run()
 
     ConnectionConfig connCfg;
     mqtt::async_client_ptr client;
@@ -158,13 +178,15 @@ namespace MqttCpp {
     mutable std::mutex mx;
     std::vector<TopicRouter> topicHandlerVec;
     std::unordered_map<uint32_t, TopicRouter> subscriptionMap;
+    std::unordered_set<std::string> subscriptionTopicSet;
+    Status stat{Status::stopped};
 
     static inline void setSignals() {
       std::call_once(sigSetup, [] {
         struct sigaction sa{};
         sa.sa_flags = 0;
         sigemptyset(&sa.sa_mask);
-        sa.sa_handler = +[](int) { running.store(false, std::memory_order_relaxed); };
+        sa.sa_handler = +[](int) { active = 0; };
         sigaction(SIGINT, &sa, nullptr);
         sigaction(SIGTERM, &sa, nullptr);
       });

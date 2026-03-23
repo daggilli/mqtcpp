@@ -36,18 +36,30 @@ int main() {
 
   subscriber.addSubscription("callable", std::ref(mh));
   subscriber2.addSubscription("testtopic", handler);
-  subscriber2.addSubscription("anothertopic", handler);
   subscriber2.addSubscription("devices/fridge/#", handler);
   subscriber2.addSubscription("devices/#", handler);
   subscriber2.addSubscription("lambda", [](std::string &topic, std::string &subscription,
                                            std::string &message) {
     std::println("LAMBDA || TOPIC [{}] || SUBSCRIPTION: |{}| || MESSAGE: |{}|", topic, subscription, message);
   });
+  // duplicate subscriptions are harmless - they will not be added twice
+  subscriber2.addSubscription("devices/#", handler);
 
   subscriber.start();
   subscriber2.start();
 
-  while (true) {
+  std::this_thread::sleep_for(1s);
+
+  // subscriptions can be added if the subscriber is stopped first
+  // existing subscriptions will be added again
+  if (subscriber2.status() == MqttCpp::Status::running) {
+    subscriber2.stop();
+
+    subscriber2.addSubscription("anothertopic", handler);
+    subscriber2.start();
+  }
+
+  while (MqttCpp::active) {
     std::this_thread::sleep_for(1s);
   }
 
